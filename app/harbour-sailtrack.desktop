@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Sailtrack
+Comment=Report your location to Dawarich
+Icon=harbour-sailtrack
+Exec=/usr/bin/harbour-sailtrack
+X-Nemo-Application-Type=silica-qt5
+X-Nemo-Single-Instance=yes
+
+[X-Sailjail]
+# The app runs systemctl --user and talks to the daemon over the session bus.
+Sandboxing=Disabled

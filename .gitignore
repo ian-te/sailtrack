@@ -1,0 +1,6 @@
+build*/
+RPMS/
+*.o
+Makefile
+.qmake.stash
+*.pro.user

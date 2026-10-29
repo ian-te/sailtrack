@@ -1,0 +1,72 @@
+name: Sailfish RPM
+
+# Builds harbour-sailtrack for 64- and 32-bit ARM with the community Sailfish Platform SDK image
+# (as ian-te/ianassistant does): its target is whichever Sailfish release the image ships.
+# Every push to main publishes the RPMs as a GitHub Release v0.1.<run>; other runs keep them as a
+# workflow artifact for a few days.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SDK_IMAGE: coderus/sailfishos-platform-sdk:latest
+  VERSION: 0.1.${{ github.run_number }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [aarch64, armv7hl]
+    steps:
+      - uses: actions/checkout@v4
+
+      # The SDK image holds every Sailfish target and unpacks to more than the runner has free.
+      - name: Make room for the SDK image
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker system prune -af >/dev/null
+          df -h /
+
+      - name: Build the RPM
+        run: |
+          sed -i "s/^Version:.*/Version:    $VERSION/" rpm/harbour-sailtrack.spec
+          mkdir -p out && chmod a+w out
+          # Target names carry the release (SailfishOS-5.2.0.15-aarch64), so take the one the image has.
+          docker run --rm \
+            -v "$PWD:/src:ro" -v "$PWD/out:/out" \
+            $SDK_IMAGE \
+            bash -ec "target=\$(ls /srv/mer/targets | grep -E '^SailfishOS-[0-9.]+-${{ matrix.arch }}\$' | sort -V | tail -1) \
+              && echo \"Building for \$target\" && echo \"\${target#SailfishOS-}\" | sed 's/-${{ matrix.arch }}//' > /out/release.txt \
+              && mkdir \$HOME/app && cd /src && cp -r common daemon app systemd rpm sailtrack.pro \$HOME/app/ && cd \$HOME/app \
+              && mb2 -t \$target build \
+              && cp RPMS/*.rpm /out/"
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref != 'refs/heads/main'
+        continue-on-error: true
+        with:
+          name: harbour-sailtrack-${{ env.VERSION }}-${{ matrix.arch }}
+          retention-days: 3
+          path: out/*.rpm
+
+      # Both architectures add their RPM to one release; whichever job comes first creates it.
+      - name: Publish to the release (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SFOS_RELEASE=$(cat out/release.txt)
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "v$VERSION" \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Sailtrack $VERSION" \
+              --notes "Built from ${GITHUB_SHA::7} for Sailfish OS $SFOS_RELEASE and later: aarch64 for 64-bit installs, armv7hl for 32-bit ones. Install with \`devel-su rpm -Uvh harbour-sailtrack-*.rpm\` (see the README)." \
+            || gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null
+          gh release upload "v$VERSION" out/*.rpm --repo "$GITHUB_REPOSITORY" --clobber

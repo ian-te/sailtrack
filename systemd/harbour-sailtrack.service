@@ -1,0 +1,11 @@
+[Unit]
+Description=Sailtrack: report the phone's location to Dawarich
+After=pre-user-session.target
+
+[Service]
+ExecStart=/usr/bin/harbour-sailtrack-daemon
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=user-session.target
