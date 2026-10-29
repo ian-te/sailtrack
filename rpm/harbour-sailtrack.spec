@@ -1,4 +1,5 @@
 Name:       harbour-sailtrack
+# CI sets 0.1.<run number>; this one only names local builds.
 Version:    0.1.1
 Release:    1
 Summary:    Report the phone's location to Dawarich
