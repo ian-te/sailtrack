@@ -66,8 +66,8 @@ QString isoOrNull(const QDateTime &time)
 Tracker::Tracker(QObject *parent)
     : QObject(parent)
     , m_activity(new BackgroundActivity(this))
-    , m_motion(new MotionCheck(this))
     , m_queue(queueFile())
+    , m_motion(new MotionCheck(this))
 {
     m_uploader = new Uploader(&m_queue, this);
     connect(m_uploader, &Uploader::finished, this, &Tracker::onUploadFinished);

@@ -54,9 +54,9 @@ private:
     BackgroundActivity *m_activity;
     Uploader *m_uploader;
     Queue m_queue;
+    MotionCheck *m_motion;
     QGeoPositionInfoSource *m_source = nullptr;
     QTimer m_fixTimer;
-    MotionCheck *m_motion;
 
     // config
     QUrl m_baseUrl;
