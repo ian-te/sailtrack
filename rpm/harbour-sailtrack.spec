@@ -1,5 +1,5 @@
 Name:       harbour-sailtrack
-Version:    0.1.0
+Version:    0.1.1
 Release:    1
 Summary:    Report the phone's location to Dawarich
 License:    MIT

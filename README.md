@@ -27,7 +27,7 @@ One RPM, `harbour-sailtrack`, with two parts:
 | Status | `~/.local/share/harbour-sailtrack/status.json`, written by the daemon on every change. The app watches it |
 | Control | The app runs `systemctl --user start/stop/enable --now/disable --now harbour-sailtrack.service`, and calls the daemon on the session bus: `dev.iante.sailtrack`, path `/`, interface `dev.iante.sailtrack.Daemon`, methods `Reload`, `SendNow`, `FixNow` |
 | Wakeups | An interval that is a standard keepalive slot (1, 2.5, 5, 10, 15, 30, 60 min) uses that slot, so the system wakes once for every app waiting on it. Other values use a range of interval to interval + 30 s |
-| Fix | A position cached from before the wakeup is skipped. The first fix within the accuracy limit ends the search, otherwise the timeout does. The timeout is kept at least 15 s under the interval |
+| Fix | A position cached from before the wakeup is skipped. A GPS-grade fix (±25 m or better) ends the search early. Otherwise the search runs to the timeout and the best fix within the accuracy limit is sent. With online assistance on, that is often a network position of ±50–100 m, which arrives within seconds but would otherwise stop the GPS before it locks. The timeout is kept at least 15 s under the interval |
 
 The app opts out of Sailjail (`Sandboxing=Disabled`): it needs `systemctl --user` and the daemon's
 bus name. The daemon isn't launched through Sailjail at all. This is not a Harbour app.
@@ -77,7 +77,7 @@ Nothing updates by itself yet. A signed RPM repository published by CI and added
    - **API key**: Dawarich → Account → API key.
    - **Every**: 1 min to 1 h. 5 min is the default.
    - **Drop fixes worse than**: 100 m by default. Raise it to accept rougher fixes indoors.
-   - **Give up on a fix after**: 90 s by default.
+   - **Give up on a fix after**: 60 s by default. Indoors the GPS rarely locks, so it stays on this long every wakeup before a rough fix is sent. Shorten it to save battery.
 2. Turn on **Track in the background**. This runs `systemctl --user enable --now`, so the service
    starts now and at every boot (`user-session.target`). Turning it off disables and stops it.
 3. **Start** and **Stop** run or end the service now without touching the boot setting.

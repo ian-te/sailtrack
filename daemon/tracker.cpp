@@ -16,6 +16,10 @@ using namespace Sailtrack;
 
 namespace {
 
+// A fix this good is the GPS's and ends the search. A rougher one (a network
+// position, ±50–100 m) is only kept in case the GPS doesn't lock in time.
+const int GpsAccuracy = 25;
+
 // Battery level and OwnTracks' bs (1 unplugged, 2 charging, 3 full), from sysfs.
 int readBattery(int *status)
 {
@@ -164,7 +168,7 @@ void Tracker::onPosition(const QGeoPositionInfo &info)
         return;
     if (!m_best.isValid() || accuracyOf(info) <= accuracyOf(m_best))
         m_best = info;
-    if (accuracyOf(m_best) <= m_minAccuracy)
+    if (accuracyOf(m_best) <= qMin(m_minAccuracy, GpsAccuracy))
         finishFix();
 }
 
@@ -199,9 +203,10 @@ void Tracker::finishFix(const QString &error)
         m_lastAttemptMessage = error;
     } else if (m_best.isValid() && accuracyOf(m_best) <= m_minAccuracy) {
         m_lastAttemptOk = m_queue.append(makePoint(m_best));
-        m_lastAttemptMessage = m_lastAttemptOk
-                ? QStringLiteral("Fix in %1 s").arg(seconds)
-                : QStringLiteral("Couldn't write the queue");
+        const int accuracy = qRound(accuracyOf(m_best));
+        m_lastAttemptMessage = !m_lastAttemptOk ? QStringLiteral("Couldn't write the queue")
+                : accuracy <= GpsAccuracy ? QStringLiteral("GPS fix in %1 s").arg(seconds)
+                : QStringLiteral("No GPS lock in %1 s, sent a rough fix (±%2 m)").arg(seconds).arg(accuracy);
         if (m_lastAttemptOk)
             m_lastFix = m_best;
     } else if (m_best.isValid()) {

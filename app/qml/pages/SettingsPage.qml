@@ -104,7 +104,7 @@ Dialog {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryHighlightColor
-                text: qsTr("The GPS is on only while waiting for a fix. It stops at the first fix within the limit, or at the timeout, which is kept 15 s under the interval.")
+                text: qsTr("The GPS is on only while waiting for a fix. A GPS fix (±25 m or better) ends the wait. Without one, the best rougher fix within the limit, such as a network position, is sent at the timeout, which stays 15 s under the interval.")
             }
 
             SectionHeader { text: qsTr("About") }

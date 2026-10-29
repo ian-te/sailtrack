@@ -26,7 +26,7 @@ const char *const KeyFixTimeout = "fixTimeout";    // seconds to wait for a fix
 const char *const KeyTrackerId = "trackerId";      // OwnTracks tid
 const int DefaultInterval = 300;
 const int DefaultMinAccuracy = 100;
-const int DefaultFixTimeout = 90;
+const int DefaultFixTimeout = 60;
 const char *const DefaultTrackerId = "SF";
 
 inline QString configDir()
