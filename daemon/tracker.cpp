@@ -20,6 +20,9 @@ namespace {
 // position, ±50–100 m) is only kept in case the GPS doesn't lock in time.
 const int GpsAccuracy = 25;
 
+// However still the phone seems, a real fix is taken at least this often.
+const int MaxReuseSecs = 1800;
+
 // Battery level and OwnTracks' bs (1 unplugged, 2 charging, 3 full), from sysfs.
 int readBattery(int *status)
 {
@@ -63,6 +66,7 @@ QString isoOrNull(const QDateTime &time)
 Tracker::Tracker(QObject *parent)
     : QObject(parent)
     , m_activity(new BackgroundActivity(this))
+    , m_motion(new MotionCheck(this))
     , m_queue(queueFile())
 {
     m_uploader = new Uploader(&m_queue, this);
@@ -70,6 +74,7 @@ Tracker::Tracker(QObject *parent)
     connect(m_activity, &BackgroundActivity::running, this, &Tracker::onRunning);
     m_fixTimer.setSingleShot(true);
     connect(&m_fixTimer, &QTimer::timeout, this, [this] { finishFix(); });
+    connect(m_motion, &MotionCheck::finished, this, &Tracker::onMotionChecked);
 }
 
 void Tracker::start()
@@ -92,6 +97,7 @@ void Tracker::loadConfig()
     m_minAccuracy = qMax(1, config->value(KeyMinAccuracy, DefaultMinAccuracy).toInt());
     m_fixTimeout = effectiveFixTimeout(config->value(KeyFixTimeout, DefaultFixTimeout).toInt(), m_interval);
     m_trackerId = config->value(KeyTrackerId, QLatin1String(DefaultTrackerId)).toString().left(2);
+    m_skipWhenStill = config->value(KeySkipWhenStill, DefaultSkipWhenStill).toBool();
 }
 
 bool Tracker::isConfigured() const
@@ -136,11 +142,53 @@ void Tracker::onRunning()
         endCycle();
         return;
     }
-    startFix();
+    if (canReuseFix()) {
+        setState(QStringLiteral("checking"));
+        m_motion->start(m_anchorRadios);
+        return;
+    }
+    startFix(RadioFingerprint::capture());
 }
 
-void Tracker::startFix()
+bool Tracker::canReuseFix() const
 {
+    return m_skipWhenStill && !m_manual && m_anchorFix.isValid() && !m_anchorRadios.isEmpty()
+            && m_anchorConfirmed.secsTo(QDateTime::currentDateTimeUtc()) < qMax(MaxReuseSecs, 2 * m_interval);
+}
+
+void Tracker::onMotionChecked(bool still, const QString &reason)
+{
+    qInfo() << "Motion check:" << reason;
+    if (still)
+        reuseFix(reason);
+    else
+        startFix(m_motion->current());
+}
+
+// Sends the anchor fix again with the current time, so Dawarich sees the stay go on.
+void Tracker::reuseFix(const QString &reason)
+{
+    QGeoPositionInfo point(m_anchorFix.coordinate(), QDateTime::currentDateTimeUtc());
+    if (m_anchorFix.hasAttribute(QGeoPositionInfo::HorizontalAccuracy))
+        point.setAttribute(QGeoPositionInfo::HorizontalAccuracy,
+                           m_anchorFix.attribute(QGeoPositionInfo::HorizontalAccuracy));
+    if (m_anchorFix.hasAttribute(QGeoPositionInfo::VerticalAccuracy))
+        point.setAttribute(QGeoPositionInfo::VerticalAccuracy,
+                           m_anchorFix.attribute(QGeoPositionInfo::VerticalAccuracy));
+    point.setAttribute(QGeoPositionInfo::GroundSpeed, 0);
+    m_lastAttempt = point.timestamp();
+    m_lastAttemptOk = m_queue.append(makePoint(point));
+    m_lastAttemptMessage = m_lastAttemptOk
+            ? QStringLiteral("Not moving (%1), sent the fix from %2 again")
+              .arg(reason, m_anchorFix.timestamp().toLocalTime().toString(QStringLiteral("HH:mm")))
+            : QStringLiteral("Couldn't write the queue");
+    qInfo() << m_lastAttemptMessage << "queue" << m_queue.count();
+    upload();
+}
+
+void Tracker::startFix(const RadioFingerprint &radios)
+{
+    m_fixRadios = radios;
     m_best = QGeoPositionInfo();
     m_fixStart = QDateTime::currentDateTimeUtc();
     m_source = QGeoPositionInfoSource::createDefaultSource(this);
@@ -207,8 +255,16 @@ void Tracker::finishFix(const QString &error)
         m_lastAttemptMessage = !m_lastAttemptOk ? QStringLiteral("Couldn't write the queue")
                 : accuracy <= GpsAccuracy ? QStringLiteral("GPS fix in %1 s").arg(seconds)
                 : QStringLiteral("No GPS lock in %1 s, sent a rough fix (±%2 m)").arg(seconds).arg(accuracy);
-        if (m_lastAttemptOk)
+        if (m_lastAttemptOk) {
             m_lastFix = m_best;
+            // Back at the anchor's place with a worse fix, keep the better one to reuse.
+            if (!m_fixRadios.sameAs(m_anchorRadios) || !m_anchorFix.isValid()
+                    || accuracyOf(m_best) <= accuracyOf(m_anchorFix) || accuracy <= GpsAccuracy) {
+                m_anchorFix = m_best;
+                m_anchorRadios = m_fixRadios;
+            }
+            m_anchorConfirmed = m_lastAttempt;
+        }
     } else if (m_best.isValid()) {
         m_lastAttemptOk = false;
         m_lastAttemptMessage = QStringLiteral("Best fix in %1 s was ±%2 m, over the %3 m limit")

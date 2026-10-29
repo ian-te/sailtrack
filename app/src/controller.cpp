@@ -28,6 +28,7 @@ QString Controller::apiKey() const { return m_config->value(KeyApiKey).toString(
 int Controller::interval() const { return m_config->value(KeyInterval, DefaultInterval).toInt(); }
 int Controller::minAccuracy() const { return m_config->value(KeyMinAccuracy, DefaultMinAccuracy).toInt(); }
 int Controller::fixTimeout() const { return m_config->value(KeyFixTimeout, DefaultFixTimeout).toInt(); }
+bool Controller::skipWhenStill() const { return m_config->value(KeySkipWhenStill, DefaultSkipWhenStill).toBool(); }
 
 bool Controller::configured() const
 {
@@ -40,13 +41,14 @@ QString Controller::version() const
 }
 
 void Controller::save(const QString &url, const QString &apiKey, int interval,
-                      int minAccuracy, int fixTimeout)
+                      int minAccuracy, int fixTimeout, bool skipWhenStill)
 {
     m_config->setValue(KeyUrl, url.trimmed());
     m_config->setValue(KeyApiKey, apiKey.trimmed());
     m_config->setValue(KeyInterval, interval);
     m_config->setValue(KeyMinAccuracy, minAccuracy);
     m_config->setValue(KeyFixTimeout, fixTimeout);
+    m_config->setValue(KeySkipWhenStill, skipWhenStill);
     m_config->sync();
     // It holds the API key.
     QFile::setPermissions(configPath(), QFileDevice::ReadOwner | QFileDevice::WriteOwner);

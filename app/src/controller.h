@@ -17,6 +17,7 @@ class Controller : public QObject
     Q_PROPERTY(int interval READ interval NOTIFY settingsChanged)
     Q_PROPERTY(int minAccuracy READ minAccuracy NOTIFY settingsChanged)
     Q_PROPERTY(int fixTimeout READ fixTimeout NOTIFY settingsChanged)
+    Q_PROPERTY(bool skipWhenStill READ skipWhenStill NOTIFY settingsChanged)
     Q_PROPERTY(bool configured READ configured NOTIFY settingsChanged)
     Q_PROPERTY(bool active READ active NOTIFY unitChanged)
     Q_PROPERTY(bool enabled READ enabled NOTIFY unitChanged)
@@ -32,6 +33,7 @@ public:
     int interval() const;
     int minAccuracy() const;
     int fixTimeout() const;
+    bool skipWhenStill() const;
     bool configured() const;
     bool active() const { return m_active; }
     bool enabled() const { return m_enabled; }
@@ -40,7 +42,7 @@ public:
     QString version() const;
 
     Q_INVOKABLE void save(const QString &url, const QString &apiKey, int interval,
-                          int minAccuracy, int fixTimeout);
+                          int minAccuracy, int fixTimeout, bool skipWhenStill);
     Q_INVOKABLE void start();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void setEnabled(bool enabled);   // start at boot (and now), or not

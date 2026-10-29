@@ -16,6 +16,7 @@ Page {
         if (!sailtrack.active)
             return qsTr("Stopped")
         switch (st.state) {
+        case "checking": return qsTr("Checking for movement")
         case "fixing": return qsTr("Getting a fix")
         case "uploading": return qsTr("Uploading")
         case "waiting": return qsTr("Waiting, next %1").arg(st.nextWake ? Format.when(st.nextWake, app.now) : "—")

@@ -61,7 +61,7 @@ the old daemon running.
 
 `pkcon install-local` over SSH stalls at "Waiting for authentication" for an unsigned package, so
 use `rpm`. Everything Sailtrack needs is on a stock install: libkeepalive, qt5-qtpositioning,
-qt5-plugin-position-geoclue and Silica.
+qt5-plugin-position-geoclue, qt5-qtsensors and Silica.
 
 ## Configure
 
@@ -76,6 +76,7 @@ qt5-plugin-position-geoclue and Silica.
    - **Drop fixes worse than**: 100 m by default. Raise it to accept rougher fixes indoors.
    - **Give up on a fix after**: 60 s by default. Indoors the GPS rarely locks, so it stays on this
      long every wakeup before a rough fix is sent. Shorten it to save battery.
+   - **Skip the GPS while not moving**: on by default. See [Stationary wakeups](#stationary-wakeups).
 2. Turn on **Track in the background**. This runs `systemctl --user enable --now`, so the service
    starts now and at every boot (`user-session.target`). Turning it off disables and stops it.
 3. **Start** and **Stop** run or end the service now without touching the boot setting.
@@ -101,6 +102,29 @@ often no fix, and the wakeup is logged as "No fix in N s".
 | Control | The app runs `systemctl --user start/stop/enable --now/disable --now harbour-sailtrack.service`, and calls the daemon on the session bus: `dev.iante.sailtrack`, path `/`, interface `dev.iante.sailtrack.Daemon`, methods `Reload`, `SendNow`, `FixNow` |
 | Wakeups | An interval that is a standard keepalive slot (1, 2.5, 5, 10, 15, 30, 60 min) uses that slot, so the system wakes once for every app waiting on it. Other values use a range of interval to interval + 30 s |
 | Fix | A position cached from before the wakeup is skipped. A GPS-grade fix (±25 m or better) ends the search early. Otherwise the search runs to the timeout and the best fix within the accuracy limit is sent. With online assistance on, that is often a network position of ±50–100 m, which arrives within seconds but would otherwise stop the GPS before it locks. The timeout is kept at least 15 s under the interval |
+
+### Stationary wakeups
+
+Most wakeups find the phone where it was last time, and the GPS is the expensive part. So before
+starting it, the daemon checks whether the phone has moved since the last fix, with sensors that
+cost next to nothing:
+
+1. **Radios.** connman's connected Wi-Fi access point (BSSID) and ofono's serving and neighbour
+   cells (`org.nemomobile.ofono.CellInfo`). Both stay current through suspend. Connected to Wi-Fi,
+   the same BSSID as at the last fix counts as the same place, and any other as moved. Without
+   Wi-Fi, the serving cell must match and at least half of the cells seen must be the same.
+2. **Accelerometer.** If the radios match, QtSensors' accelerometer (sensorfwd, `alwaysOn` so it
+   runs with the display off) is read for 3 s. A spread of |a| over 0.25 m/s² counts as moving.
+
+Still on both counts, the last fix is queued again with the current time, its accuracy and speed 0,
+and the GPS stays off; the wakeup is logged as "Not moving (…), sent the fix from HH:MM again".
+Otherwise it's a normal fix. A real fix is taken at least every 30 minutes (2 intervals, if
+longer), on **Fix now**, and after a daemon restart. Back at a place with a worse fix than the one
+stored for it, the better one is kept to reuse.
+
+Not used: the hardware step counter (sensorfwd has a hybris adaptor, but `stepcountersensor=False`
+in `/etc/sensorfw/sensord.conf.d`, and enabling it takes root) and a significant-motion wakeup
+sensor (sensorfwd doesn't expose one).
 
 The app opts out of Sailjail (`Sandboxing=Disabled`): it needs `systemctl --user` and the daemon's
 bus name. The daemon isn't launched through Sailjail at all. This is not a Harbour app.
@@ -228,7 +252,7 @@ blank or comment lines inside it.
 | Path | What |
 |---|---|
 | `common/paths.h` | Paths, config keys and defaults, D-Bus names, shared by both binaries |
-| `daemon/` | `tracker.*` (wakeup cycle, fix, status, D-Bus), `queue.*` (on-disk queue), `uploader.*` (OwnTracks POSTs) |
+| `daemon/` | `tracker.*` (wakeup cycle, fix, status, D-Bus), `motion.*` (moved since the last fix?), `queue.*` (on-disk queue), `uploader.*` (OwnTracks POSTs) |
 | `systemd/harbour-sailtrack.service` | The user unit |
 | `app/src/controller.*` | The app's settings, status, systemctl and D-Bus |
 | `app/qml/` | Main page, settings dialog, cover |

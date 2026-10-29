@@ -17,7 +17,7 @@ Dialog {
     canAccept: urlField.acceptableInput || urlField.text.length === 0
 
     onAccepted: sailtrack.save(urlField.text, keyField.text, intervals[intervalBox.currentIndex],
-                               accuracySlider.value, timeoutSlider.value)
+                               accuracySlider.value, timeoutSlider.value, stillSwitch.checked)
 
     SilicaFlickable {
         anchors.fill: parent
@@ -105,6 +105,13 @@ Dialog {
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryHighlightColor
                 text: qsTr("The GPS is on only while waiting for a fix. A GPS fix (±25 m or better) ends the wait. Without one, the best rougher fix within the limit, such as a network position, is sent at the timeout, which stays 15 s under the interval.")
+            }
+
+            TextSwitch {
+                id: stillSwitch
+                text: qsTr("Skip the GPS while not moving")
+                description: qsTr("When the phone is on the same Wi-Fi access point (or sees the same cell towers) as at the last fix and the accelerometer is still for 3 s, the last fix is sent again and the GPS stays off. A real fix is still taken at least every 30 minutes, or every other wakeup at longer intervals.")
+                checked: sailtrack.skipWhenStill
             }
 
             SectionHeader { text: qsTr("About") }

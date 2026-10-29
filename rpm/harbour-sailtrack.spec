@@ -11,6 +11,7 @@ Requires:   sailfishsilica-qt5 >= 0.10.9
 Requires:   libkeepalive
 Requires:   qt5-qtpositioning
 Requires:   qt5-plugin-position-geoclue
+Requires:   qt5-qtsensors
 Requires(post): systemd
 Requires(postun): systemd
 BuildRequires: pkgconfig(sailfishapp) >= 1.0.2
@@ -20,6 +21,7 @@ BuildRequires: pkgconfig(Qt5Quick)
 BuildRequires: pkgconfig(Qt5DBus)
 BuildRequires: pkgconfig(Qt5Network)
 BuildRequires: pkgconfig(Qt5Positioning)
+BuildRequires: pkgconfig(Qt5Sensors)
 BuildRequires: pkgconfig(keepalive)
 BuildRequires: desktop-file-utils
 
