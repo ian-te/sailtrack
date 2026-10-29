@@ -1,0 +1,14 @@
+<!-- The OBS package's _service: tar_git checks out the tag, packs the tree as
+     harbour-sailtrack-<version>.tar.bz2 and sets the spec's Version from the tag (v0.2.0 → 0.2.0).
+     Upload it to the package on build.sailfishos.org and change only "revision" for a release.
+     Chum wants a fixed tag here, not a branch head or a webhook. -->
+<services>
+  <service name="tar_git">
+    <param name="url">https://github.com/ian-te/sailtrack.git</param>
+    <param name="branch">main</param>
+    <param name="revision">v0.2.0</param>
+    <param name="token"></param>
+    <param name="debian">N</param>
+    <param name="dumb">N</param>
+  </service>
+</services>
