@@ -44,6 +44,20 @@ int readBattery(int *status)
     return level;
 }
 
+// Battery charge left (mAh) and current (mA) from sysfs, or -1 when unknown.
+int readSysfsMilli(const char *name)
+{
+    QFile file(QStringLiteral("/sys/class/power_supply/battery/") + QLatin1String(name));
+    if (!file.open(QIODevice::ReadOnly))
+        return -1;
+    bool ok = false;
+    const qlonglong micro = file.readAll().trimmed().toLongLong(&ok);
+    return ok ? int(micro / 1000) : -1;
+}
+
+// The cycle log keeps about the last two months at a 5 min interval.
+const qint64 MaxCyclesBytes = 1024 * 1024;
+
 QString queueFile()
 {
     QDir().mkpath(dataDir());
@@ -183,6 +197,7 @@ void Tracker::reuseFix(const QString &reason)
               .arg(reason, m_anchorFix.timestamp().toLocalTime().toString(QStringLiteral("HH:mm")))
             : QStringLiteral("Couldn't write the queue");
     qInfo() << m_lastAttemptMessage << "queue" << m_queue.count();
+    logCycle(QStringLiteral("reused"), 0, readSysfsMilli("current_now"));
     upload();
 }
 
@@ -238,6 +253,7 @@ void Tracker::onSourceError(QGeoPositionInfoSource::Error error)
 void Tracker::finishFix(const QString &error)
 {
     m_fixTimer.stop();
+    const int gpsCurrent = m_source ? readSysfsMilli("current_now") : -1;   // with the GPS still on
     if (m_source) {
         m_source->stopUpdates();   // releases the GPS
         m_source->disconnect(this);
@@ -274,6 +290,9 @@ void Tracker::finishFix(const QString &error)
         m_lastAttemptMessage = QStringLiteral("No fix in %1 s").arg(seconds);
     }
     qInfo() << m_lastAttemptMessage << "queue" << m_queue.count();
+    const QString kind = !error.isEmpty() || !m_lastAttemptOk ? QStringLiteral("none")
+            : accuracyOf(m_best) <= GpsAccuracy ? QStringLiteral("gps") : QStringLiteral("rough");
+    logCycle(m_manual ? kind + QStringLiteral("-manual") : kind, seconds, gpsCurrent);
     m_manual = false;
     upload();
 }
@@ -368,6 +387,37 @@ QByteArray Tracker::makePoint(const QGeoPositionInfo &info) const
     point.insert(QStringLiteral("topic"), QStringLiteral("owntracks/sailtrack/") + m_trackerId);
     point.insert(QStringLiteral("t"), m_manual ? QStringLiteral("u") : QStringLiteral("t"));
     return QJsonDocument(point).toJson(QJsonDocument::Compact);
+}
+
+// One line per wakeup, for working out what the tracking costs in battery:
+// time,kind,gps_s,charge_mah,current_ma,capacity,status. kind is gps, rough, none
+// (suffixed -manual for Fix now) or reused; current_ma is read with the GPS still on.
+void Tracker::logCycle(const QString &kind, int gpsSeconds, int currentMa)
+{
+    QFile file(cyclesPath());
+    if (file.size() > MaxCyclesBytes && file.open(QIODevice::ReadOnly)) {
+        const QByteArray all = file.readAll();
+        file.close();
+        const int cut = all.indexOf('\n', all.size() / 2);
+        QSaveFile trimmed(cyclesPath());
+        if (cut > 0 && trimmed.open(QIODevice::WriteOnly)) {
+            trimmed.write(all.left(all.indexOf('\n') + 1));   // header
+            trimmed.write(all.mid(cut + 1));
+            trimmed.commit();
+        }
+    }
+    const bool fresh = !file.exists();
+    if (!file.open(QIODevice::Append | QIODevice::Text))
+        return;
+    if (fresh)
+        file.write("time,kind,gps_s,charge_mah,current_ma,capacity,status\n");
+    int status = 0;
+    const int capacity = readBattery(&status);
+    const char *const statusNames[] = {"", "discharging", "charging", "full"};
+    file.write(QStringLiteral("%1,%2,%3,%4,%5,%6,%7\n")
+               .arg(isoOrNull(QDateTime::currentDateTimeUtc()), kind).arg(gpsSeconds)
+               .arg(readSysfsMilli("charge_counter")).arg(currentMa).arg(capacity)
+               .arg(QLatin1String(statusNames[status])).toUtf8());
 }
 
 void Tracker::setState(const QString &state)

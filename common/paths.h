@@ -46,6 +46,7 @@ inline QString dataDir()
 inline QString configPath() { return configDir() + QLatin1String("/sailtrack.conf"); }
 inline QString queuePath() { return dataDir() + QLatin1String("/queue.jsonl"); }
 inline QString statusPath() { return dataDir() + QLatin1String("/status.json"); }
+inline QString cyclesPath() { return dataDir() + QLatin1String("/cycles.csv"); }
 
 inline QSettings *openConfig(QObject *parent = nullptr)
 {

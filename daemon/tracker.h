@@ -48,6 +48,7 @@ private:
     void endCycle();
     void scheduleNext();
     QByteArray makePoint(const QGeoPositionInfo &info) const;
+    void logCycle(const QString &kind, int gpsSeconds, int currentMa);
     void setState(const QString &state);
     void writeStatus();
 
