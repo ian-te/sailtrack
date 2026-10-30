@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # A release tag sets the version. Any other build keeps the spec's and gets Release 0.git<sha>,
+      # A release tag sets the version. Any other build keeps the spec's and gets Release 0.<run>.git<sha>,
       # which sorts below the release's -1.
       - name: Work out the version
         run: |
@@ -44,7 +44,8 @@ jobs:
             echo "RELEASE=true" >> "$GITHUB_ENV"
           else
             VERSION=$SPEC_VERSION
-            RPM_RELEASE=0.git${GITHUB_SHA::7}
+            # The run number first: hashes don't sort, so a newer build could look older to rpm.
+            RPM_RELEASE=0.${GITHUB_RUN_NUMBER}.git${GITHUB_SHA::7}
             echo "RELEASE=false" >> "$GITHUB_ENV"
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
