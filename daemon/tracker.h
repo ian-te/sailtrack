@@ -36,9 +36,10 @@ private:
     void loadConfig();
     bool isConfigured() const;
     void onRunning();
-    bool canReuseFix() const;
+    bool canSkipFix() const;
     void onMotionChecked(bool still, const QString &reason);
     void reuseFix(const QString &reason);
+    void skipFix(const QString &reason);
     void startFix(const RadioFingerprint &radios);
     void onPosition(const QGeoPositionInfo &info);
     void onSourceError(QGeoPositionInfoSource::Error error);
@@ -78,10 +79,11 @@ private:
     QDateTime m_nextWake;
     QGeoPositionInfo m_best;
     QGeoPositionInfo m_lastFix;
-    // The fix a stationary wakeup sends again, and what the radios saw when it was taken.
+    // The last place a fix was tried: what the radios saw there, the fix a stationary
+    // wakeup sends again (invalid if none could be had) and when the GPS last tried.
     QGeoPositionInfo m_anchorFix;
     RadioFingerprint m_anchorRadios;
-    QDateTime m_anchorConfirmed;   // last real fix at the anchor's place
+    QDateTime m_anchorConfirmed;
     RadioFingerprint m_fixRadios;
     QDateTime m_lastAttempt;
     bool m_lastAttemptOk = false;

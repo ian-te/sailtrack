@@ -97,7 +97,7 @@ often no fix, and the wakeup is logged as "No fix in N s".
 | Fields | `lat`, `lon`, `tst`, `acc`, plus `alt`, `vac`, `vel` (km/h), `cog`, `batt`, `bs` when known, `tid` (`SF`), `topic` (`owntracks/sailtrack/SF`, which makes Dawarich read `vel` as km/h), `t` (`t` for timer, `u` for a manual fix) |
 | Queue | `~/.local/share/harbour-sailtrack/queue.jsonl`, one point per line. Drained in batches of 25, up to 1000 per wakeup, oldest first. A batch is cut from the file once it's through |
 | Failures | Network errors, timeouts (30 s), 401/403/404 and 5xx stop the drain and keep the point for the next wakeup. 400 and 422 drop the point, so one bad point can't block the queue. Dawarich ignores duplicates (`user_id, timestamp, lonlat` is unique), so a point sent twice after a crash is harmless |
-| Cycle log | `~/.local/share/harbour-sailtrack/cycles.csv`, one line per wakeup: `time,kind,gps_s,charge_mah,current_ma,capacity,status`. `kind` is `gps`, `rough`, `none` (`-manual` for Fix now) or `reused`; `current_ma` is read with the GPS still on, `charge_mah` is the battery's charge counter. For working out drain per hour and GPS time per hour. Trimmed to its newer half past 1 MB |
+| Cycle log | `~/.local/share/harbour-sailtrack/cycles.csv`, one line per wakeup: `time,kind,gps_s,charge_mah,current_ma,capacity,status`. `kind` is `gps`, `rough`, `none` (`-manual` for Fix now), `reused` or `skipped`; `current_ma` is read with the GPS still on, `charge_mah` is the battery's charge counter. For working out drain per hour and GPS time per hour. Trimmed to its newer half past 1 MB |
 | Config | `~/.config/harbour-sailtrack/sailtrack.conf` (INI, mode 600, it holds the API key). Written by the app and reread by the daemon at each wakeup and on `Reload` |
 | Status | `~/.local/share/harbour-sailtrack/status.json`, written by the daemon on every change. The app watches it |
 | Control | The app runs `systemctl --user start/stop/enable --now/disable --now harbour-sailtrack.service`, and calls the daemon on the session bus: `dev.iante.sailtrack`, path `/`, interface `dev.iante.sailtrack.Daemon`, methods `Reload`, `SendNow`, `FixNow` |
@@ -119,7 +119,8 @@ cost next to nothing:
 
 Still on both counts, the last fix is queued again with the current time, its accuracy and speed 0,
 and the GPS stays off; the wakeup is logged as "Not moving (…), sent the fix from HH:MM again".
-Otherwise it's a normal fix. A real fix is taken at least every 30 minutes (2 intervals, if
+If the last attempt at this place got no fix (indoors, usually), nothing is sent and the GPS stays
+off too: "Not moving (…), no fix here at HH:MM, GPS left off". Otherwise it's a normal fix. The GPS still tries at least every 30 minutes (2 intervals, if
 longer), on **Fix now**, and after a daemon restart. Back at a place with a worse fix than the one
 stored for it, the better one is kept to reuse.
 

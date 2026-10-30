@@ -156,7 +156,7 @@ void Tracker::onRunning()
         endCycle();
         return;
     }
-    if (canReuseFix()) {
+    if (canSkipFix()) {
         setState(QStringLiteral("checking"));
         m_motion->start(m_anchorRadios);
         return;
@@ -164,17 +164,19 @@ void Tracker::onRunning()
     startFix(RadioFingerprint::capture());
 }
 
-bool Tracker::canReuseFix() const
+bool Tracker::canSkipFix() const
 {
-    return m_skipWhenStill && !m_manual && m_anchorFix.isValid() && !m_anchorRadios.isEmpty()
+    return m_skipWhenStill && !m_manual && !m_anchorRadios.isEmpty()
             && m_anchorConfirmed.secsTo(QDateTime::currentDateTimeUtc()) < qMax(MaxReuseSecs, 2 * m_interval);
 }
 
 void Tracker::onMotionChecked(bool still, const QString &reason)
 {
     qInfo() << "Motion check:" << reason;
-    if (still)
+    if (still && m_anchorFix.isValid())
         reuseFix(reason);
+    else if (still)
+        skipFix(reason);
     else
         startFix(m_motion->current());
 }
@@ -198,6 +200,18 @@ void Tracker::reuseFix(const QString &reason)
             : QStringLiteral("Couldn't write the queue");
     qInfo() << m_lastAttemptMessage << "queue" << m_queue.count();
     logCycle(QStringLiteral("reused"), 0, readSysfsMilli("current_now"));
+    upload();
+}
+
+// No fix to be had here last time, and nothing has changed: leave the GPS off.
+void Tracker::skipFix(const QString &reason)
+{
+    m_lastAttempt = QDateTime::currentDateTimeUtc();
+    m_lastAttemptOk = true;
+    m_lastAttemptMessage = QStringLiteral("Not moving (%1), no fix here at %2, GPS left off")
+            .arg(reason, m_anchorConfirmed.toLocalTime().toString(QStringLiteral("HH:mm")));
+    qInfo() << m_lastAttemptMessage;
+    logCycle(QStringLiteral("skipped"), 0, readSysfsMilli("current_now"));
     upload();
 }
 
@@ -281,13 +295,18 @@ void Tracker::finishFix(const QString &error)
             }
             m_anchorConfirmed = m_lastAttempt;
         }
-    } else if (m_best.isValid()) {
-        m_lastAttemptOk = false;
-        m_lastAttemptMessage = QStringLiteral("Best fix in %1 s was ±%2 m, over the %3 m limit")
-                .arg(seconds).arg(qRound(accuracyOf(m_best))).arg(m_minAccuracy);
     } else {
         m_lastAttemptOk = false;
-        m_lastAttemptMessage = QStringLiteral("No fix in %1 s").arg(seconds);
+        m_lastAttemptMessage = m_best.isValid()
+                ? QStringLiteral("Best fix in %1 s was ±%2 m, over the %3 m limit")
+                  .arg(seconds).arg(qRound(accuracyOf(m_best))).arg(m_minAccuracy)
+                : QStringLiteral("No fix in %1 s").arg(seconds);
+        // Remember there's no fix to be had here, unless it's a place with one from before.
+        if (!m_fixRadios.sameAs(m_anchorRadios)) {
+            m_anchorFix = QGeoPositionInfo();
+            m_anchorRadios = m_fixRadios;
+        }
+        m_anchorConfirmed = m_lastAttempt;
     }
     qInfo() << m_lastAttemptMessage << "queue" << m_queue.count();
     const QString kind = !error.isEmpty() || !m_lastAttemptOk ? QStringLiteral("none")
@@ -391,7 +410,7 @@ QByteArray Tracker::makePoint(const QGeoPositionInfo &info) const
 
 // One line per wakeup, for working out what the tracking costs in battery:
 // time,kind,gps_s,charge_mah,current_ma,capacity,status. kind is gps, rough, none
-// (suffixed -manual for Fix now) or reused; current_ma is read with the GPS still on.
+// (suffixed -manual for Fix now), reused or skipped; current_ma is read with the GPS still on.
 void Tracker::logCycle(const QString &kind, int gpsSeconds, int currentMa)
 {
     QFile file(cyclesPath());
