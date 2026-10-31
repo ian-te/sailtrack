@@ -135,7 +135,8 @@ change.
 
 **Versions come from git tags only.** A tag `vX.Y.Z` is the release X.Y.Z. CI and OBS's `tar_git`
 both set the spec's `Version:` from it, and sfdk names local builds after the newest tag. Untagged
-CI builds keep the spec's `Version:` with `Release: 0.git<sha>`, which sorts below the release.
+CI builds keep the spec's `Version:` with `Release: 0.<run number>.git<sha>`, which sorts below the
+release and above the CI build before it.
 
 ### Each release
 
