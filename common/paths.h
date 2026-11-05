@@ -24,10 +24,12 @@ const char *const KeyInterval = "interval";        // seconds between fixes
 const char *const KeyMinAccuracy = "minAccuracy";  // metres; worse fixes are dropped
 const char *const KeyFixTimeout = "fixTimeout";    // seconds to wait for a fix
 const char *const KeyTrackerId = "trackerId";      // OwnTracks tid
+const char *const KeySkipWhenStill = "skipWhenStill";  // reuse the last fix while not moving
 const int DefaultInterval = 300;
 const int DefaultMinAccuracy = 100;
 const int DefaultFixTimeout = 60;
 const char *const DefaultTrackerId = "SF";
+const bool DefaultSkipWhenStill = true;
 
 inline QString configDir()
 {
@@ -44,6 +46,7 @@ inline QString dataDir()
 inline QString configPath() { return configDir() + QLatin1String("/sailtrack.conf"); }
 inline QString queuePath() { return dataDir() + QLatin1String("/queue.jsonl"); }
 inline QString statusPath() { return dataDir() + QLatin1String("/status.json"); }
+inline QString cyclesPath() { return dataDir() + QLatin1String("/cycles.csv"); }
 
 inline QSettings *openConfig(QObject *parent = nullptr)
 {

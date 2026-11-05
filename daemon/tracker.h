@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QUrl>
 
+#include "motion.h"
 #include "queue.h"
 
 class BackgroundActivity;
@@ -15,7 +16,8 @@ class Uploader;
 
 // One cycle per wakeup: BackgroundActivity wakes the phone, the tracker takes one
 // fix (or gives up after the timeout), queues it, drains the queue and goes back to
-// waiting. Exported on D-Bus for the app.
+// waiting. While the phone hasn't moved since the last fix, that fix is sent again
+// and the GPS stays off. Exported on D-Bus for the app.
 class Tracker : public QObject
 {
     Q_OBJECT
@@ -34,7 +36,11 @@ private:
     void loadConfig();
     bool isConfigured() const;
     void onRunning();
-    void startFix();
+    bool canSkipFix() const;
+    void onMotionChecked(bool still, const QString &reason);
+    void reuseFix(const QString &reason);
+    void skipFix(const QString &reason);
+    void startFix(const RadioFingerprint &radios);
     void onPosition(const QGeoPositionInfo &info);
     void onSourceError(QGeoPositionInfoSource::Error error);
     void finishFix(const QString &error = QString());
@@ -43,12 +49,14 @@ private:
     void endCycle();
     void scheduleNext();
     QByteArray makePoint(const QGeoPositionInfo &info) const;
+    void logCycle(const QString &kind, int gpsSeconds, int currentMa);
     void setState(const QString &state);
     void writeStatus();
 
     BackgroundActivity *m_activity;
     Uploader *m_uploader;
     Queue m_queue;
+    MotionCheck *m_motion;
     QGeoPositionInfoSource *m_source = nullptr;
     QTimer m_fixTimer;
 
@@ -59,6 +67,7 @@ private:
     int m_minAccuracy = 0;
     int m_fixTimeout = 0;
     QString m_trackerId;
+    bool m_skipWhenStill = true;
 
     // state
     QString m_state;
@@ -70,6 +79,12 @@ private:
     QDateTime m_nextWake;
     QGeoPositionInfo m_best;
     QGeoPositionInfo m_lastFix;
+    // The last place a fix was tried: what the radios saw there, the fix a stationary
+    // wakeup sends again (invalid if none could be had) and when the GPS last tried.
+    QGeoPositionInfo m_anchorFix;
+    RadioFingerprint m_anchorRadios;
+    QDateTime m_anchorConfirmed;
+    RadioFingerprint m_fixRadios;
     QDateTime m_lastAttempt;
     bool m_lastAttemptOk = false;
     QString m_lastAttemptMessage;
