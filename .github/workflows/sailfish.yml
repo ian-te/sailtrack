@@ -28,8 +28,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # A release tag sets the version. Any other build keeps the spec's and gets Release 0.<run>.git<sha>,
-      # which sorts below the release's -1.
+      # A release tag sets the version. Any other build keeps the spec's and gets Release
+      # 0.<run number>.git<sha>: below the release's -1, and each build above the one before. The
+      # hash alone doesn't do that: rpm compares hashes as text, so a newer build can sort lower.
       - name: Work out the version
         run: |
           SPEC_VERSION=$(sed -n 's/^Version:[[:space:]]*//p' rpm/harbour-sailtrack.spec)
@@ -44,7 +45,6 @@ jobs:
             echo "RELEASE=true" >> "$GITHUB_ENV"
           else
             VERSION=$SPEC_VERSION
-            # The run number first: hashes don't sort, so a newer build could look older to rpm.
             RPM_RELEASE=0.${GITHUB_RUN_NUMBER}.git${GITHUB_SHA::7}
             echo "RELEASE=false" >> "$GITHUB_ENV"
           fi
